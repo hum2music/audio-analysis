@@ -1,5 +1,5 @@
 import type { NoteCandidate, PitchFrame } from "@hum2music/core";
-import { frequencyToMidiNote } from "./pitch-to-midi";
+import { frequencyToMidiNote } from "./pitch-to-midi.ts";
 
 export interface SegmentationOptions {
   hopMs: number;

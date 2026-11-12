@@ -1,6 +1,6 @@
-import { DEFAULT_HOP_SIZE, detectPitchYin } from "./yin";
-import { removePitchOutliers, smoothPitchTrajectory } from "./smoothing";
-import { segmentNotes } from "./segmentation";
+import { DEFAULT_HOP_SIZE, detectPitchYin } from "./yin.ts";
+import { removePitchOutliers, smoothPitchTrajectory } from "./smoothing.ts";
+import { segmentNotes } from "./segmentation.ts";
 
 export interface TranscribedNote {
   midiPitch: number;
