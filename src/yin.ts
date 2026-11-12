@@ -3,6 +3,16 @@ import type { PitchFrame } from "@hum2music/core";
 export const DEFAULT_FRAME_SIZE = 1024;
 export const DEFAULT_HOP_SIZE = 512;
 
+/**
+ * A true fundamental period is also, by definition, periodic at every
+ * integer multiple of itself, so its CMNDF dip and a harmonic's dip can
+ * land within noise of each other. Candidates this close to the frame's
+ * deepest dip are treated as tied; the smallest such tau (highest
+ * frequency) is then picked, to still prefer the fundamental over an
+ * octave-too-low subharmonic when the two are indistinguishably deep.
+ */
+const OCTAVE_TIE_EPSILON = 0.03;
+
 export interface YinOptions {
   frameSize?: number;
   hopSize?: number;
@@ -47,15 +57,7 @@ export function detectPitchYin(samples: Float32Array, sampleRate: number, option
       cmndf[tau] = runningSum === 0 ? 1 : (diff[tau] * tau) / runningSum;
     }
 
-    let tauEstimate = -1;
-    for (let tau = tauMin; tau <= tauMax; tau++) {
-      if (cmndf[tau] < threshold) {
-        while (tau + 1 <= tauMax && cmndf[tau + 1] < cmndf[tau]) tau++;
-        tauEstimate = tau;
-        break;
-      }
-    }
-
+    const tauEstimate = selectTauEstimate(cmndf, tauMin, tauMax, threshold);
     const timeMs = (start / sampleRate) * 1000;
 
     if (tauEstimate === -1) {
@@ -71,6 +73,32 @@ export function detectPitchYin(samples: Float32Array, sampleRate: number, option
   }
 
   return frames;
+}
+
+/**
+ * Picks the tau whose CMNDF dip is deepest among every local minimum below
+ * threshold, in increasing tau order (preferring the smallest/highest-
+ * frequency tau among near-ties, within OCTAVE_TIE_EPSILON of the deepest
+ * value found). A strong harmonic can dip below threshold at a short tau
+ * before the true (longer-tau) fundamental period's dip does; picking the
+ * first dip found, unconditionally, locks onto that harmonic as an
+ * octave-too-high error. Returns -1 when no candidate dips below threshold.
+ */
+export function selectTauEstimate(cmndf: Float64Array, tauMin: number, tauMax: number, threshold: number): number {
+  const candidateTaus: number[] = [];
+  let deepestCmndf = Infinity;
+  for (let tau = tauMin; tau <= tauMax; tau++) {
+    if (cmndf[tau] < threshold) {
+      while (tau + 1 <= tauMax && cmndf[tau + 1] < cmndf[tau]) tau++;
+      candidateTaus.push(tau);
+      if (cmndf[tau] < deepestCmndf) deepestCmndf = cmndf[tau];
+    }
+  }
+
+  for (const tau of candidateTaus) {
+    if (cmndf[tau] <= deepestCmndf + OCTAVE_TIE_EPSILON) return tau;
+  }
+  return -1;
 }
 
 function parabolicInterpolate(cmndf: Float64Array, tau: number, tauMax: number): number {
